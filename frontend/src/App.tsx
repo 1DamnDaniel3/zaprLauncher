@@ -1,15 +1,14 @@
-import {useState} from 'react';
-import logo from './assets/images/logo-universal.png';
 import './App.css';
+import icon from '../../build/windows/icon.ico'
+import { Loader } from './shared/Loader/Loader';
 
 function App() {
 
 
     return (
         <div id="App">
-            <div className='wrapper'>
-                <span>Say Hi 👋</span>
-            </div>
+            <img className='icon' src={icon}></img>
+            <Loader />
         </div>
     )
 }

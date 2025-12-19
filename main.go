@@ -30,13 +30,15 @@ func main() {
 	err := wails.Run(&options.App{
 		Title:  "zaprLauncher",
 		Width:  200,
-		Height: 300,
+		Height: 250,
 
 		MinWidth:  200,
 		MaxWidth:  200,
-		MinHeight: 300,
-		MaxHeight: 300,
+		MinHeight: 250,
+		MaxHeight: 250,
 		Frameless: true,
+		CSSDragProperty: "widows",
+		CSSDragValue:    "1",
 
 		AssetServer: &assetserver.Options{
 			Assets: assets,
