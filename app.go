@@ -95,6 +95,12 @@ func (a *App) startup(ctx context.Context) {
 				resCh <- UpdateResult{err: fmt.Errorf("❗Downloading failed because of: %v", err)}
 				return
 			}
+
+			if err := update.CorrectVersionFile(projectDir, release); err != nil {
+				resCh <- UpdateResult{err: fmt.Errorf("❗version update error: %v", err)}
+				return
+			}
+
 			ExeFilePath := filepath.Join(exeDir, "ZaprUi.exe")
 			resCh <- UpdateResult{exePath: ExeFilePath}
 
