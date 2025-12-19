@@ -114,6 +114,7 @@ func (a *App) startup(ctx context.Context) {
 		if !openzapr.IsAdmin() {
 			openzapr.RunZaprAsAdmin(a.ExeFilePath)
 		}
+		runtime.Quit(a.ctx)
 
 	case <-timeoutCtx.Done():
 		fmt.Println("Timeout reached")
