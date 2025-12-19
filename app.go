@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	openzapr "zaprLauncher/backend/openZapr"
 	"zaprLauncher/backend/update"
 	"zaprLauncher/backend/utils"
 
@@ -34,21 +35,24 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	done := make(chan struct{})
+	resCh := make(chan UpdateResult, 1)
 
 	go func() {
-		a.projectDir = utils.GetAppDataPath("ZaprUI")
-		a.exeDir = a.projectDir + "/bin"
+
+		projectDir := utils.GetAppDataPath("ZaprUI")
+		exeDir := projectDir + "/bin"
 
 		// creating ProjectDir in User/AppData/Roaming/
-		if err := ensureAppDir(a.projectDir); err != nil {
-			panic(fmt.Errorf("❗error creating app directory in AppData: %w", err))
+		if err := ensureAppDir(projectDir); err != nil {
+			resCh <- UpdateResult{err: fmt.Errorf("❗error creating app directory in AppData: %w", err)}
+			return
 		}
-		if err := ensureAppDir(a.exeDir); err != nil { // temp dir for sessions data files
-			panic(fmt.Errorf("❗error creating gitrepo directory in project dir: %w", err))
+		if err := ensureAppDir(exeDir); err != nil { // temp dir for sessions data files
+			resCh <- UpdateResult{err: fmt.Errorf("❗error creating gitrepo directory in project dir: %w", err)}
+			return
 		}
 
 		// =============================================== fetching zaprUI
@@ -59,49 +63,73 @@ func (a *App) startup(ctx context.Context) {
 
 		release, err := update.ParceLatestRelease(client) // Asking GitHub Releases about latest
 		if err != nil {
-			panic(fmt.Errorf("❗error parce latest release: %v", err))
+			resCh <- UpdateResult{err: fmt.Errorf("❗error parce latest release: %v", err)}
+			return
 		}
 
-		if err := update.EnsureVersionFileExist(a.projectDir, release); err != nil { //  Check VersionFile
-			panic(fmt.Errorf("❗version file ensure error: %v", err))
+		if err := update.EnsureVersionFileExist(projectDir, release); err != nil { //  Check VersionFile
+			resCh <- UpdateResult{err: fmt.Errorf("❗version file ensure error: %v", err)}
+			return
 		}
-		a.versionFilePath = filepath.Join(a.projectDir, "zaprUI_version.txt")
+		versionFilePath := filepath.Join(projectDir, "zaprUI_version.txt")
 
 		// CHECKING Latest and Ready
-		latest, err := update.IsLatestVersion(a.versionFilePath, release) // Trying version
+		latest, err := update.IsLatestVersion(versionFilePath, release) // Trying version
 		if err != nil {
-			panic(fmt.Errorf("❗failed to check version: %v", err))
+			resCh <- UpdateResult{err: fmt.Errorf("❗failed to check version: %v", err)}
+			return
 		}
-		ready, err := update.IsReleaseReady(a.exeDir)
+		ready, err := update.IsReleaseReady(exeDir)
 		if err != nil {
-			panic(fmt.Errorf("❗failed to check release files: %v", err))
+			resCh <- UpdateResult{err: fmt.Errorf("❗failed to check release files: %v", err)}
+			return
 		}
 
 		if latest && ready {
 			fmt.Println("You use actual version!")
+			ExeFilePath := filepath.Join(exeDir, "ZaprUi.exe")
+			resCh <- UpdateResult{exePath: ExeFilePath}
+
 		} else {
-			if err := update.DownloadReleaseExe(client, release, a.exeDir); err != nil {
-				panic(fmt.Errorf("❗Downloading failed because of: %v", err))
+			if err := update.DownloadReleaseExe(client, release, exeDir); err != nil {
+				resCh <- UpdateResult{err: fmt.Errorf("❗Downloading failed because of: %v", err)}
+				return
 			}
-			a.ExeFilePath = filepath.Join(a.exeDir, "zaprUi.exe")
+			ExeFilePath := filepath.Join(exeDir, "ZaprUi.exe")
+			resCh <- UpdateResult{exePath: ExeFilePath}
+
 		}
-		close(done)
+
 	}()
 
 	select {
-	case <-done:
-		fmt.Println("Update finished")
-	case <-ctx.Done():
-		fmt.Println("Timeout reached")
-	}
+	case res := <-resCh:
+		if res.err != nil {
+			panic(res.err)
+		}
 
-	// тут происходит запрос UAC для приложухи и её вызов
+		fmt.Println("Update finished")
+		a.ExeFilePath = res.exePath
+
+		if !openzapr.IsAdmin() {
+			openzapr.RunZaprAsAdmin(a.ExeFilePath)
+		}
+
+	case <-timeoutCtx.Done():
+		fmt.Println("Timeout reached")
+		runtime.Quit(a.ctx)
+	}
 
 }
 
 // Getting sure that ProjectDir created
 func ensureAppDir(path string) error {
 	return os.MkdirAll(path, 0755)
+}
+
+type UpdateResult struct {
+	exePath string
+	err     error
 }
 
 // ===================================== WAILS API ==========================

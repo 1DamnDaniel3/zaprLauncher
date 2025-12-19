@@ -17,22 +17,10 @@ var assets embed.FS
 
 func main() {
 
-	// wg := &sync.WaitGroup{}
-
-	// wg.Add(1)
-	// go func() {
-	// 	defer wg.Done()
 	// 	if !isAdmin() {
 	// 		rerunAsAdmin()
-	// 	}
 
 	// 	runProgram()
-	// }()
-
-	// wg.Wait()
-
-	// запускается main ->
-
 	// ===========
 
 	// Create an instance of the app structure
